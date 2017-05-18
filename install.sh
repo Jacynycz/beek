@@ -10,7 +10,7 @@ else
     echo "hostapd not found, please install hostapd"
 fi
 
-if command -v isc-dhcp-server >/dev/null 2>&1 ; then
+if dpkg-query -l isc-dhcp-server >/dev/null 2>&1 ; then
     echo "isc-dhcp-server found"
 else
     echo "isc-dhcp-server not found, please install isc-dhcp-server"
