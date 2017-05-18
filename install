@@ -1,7 +1,0 @@
-
-# write out cron demon for checking the 
-# mac addresses connected to the router
-crontab -l > mycron
-echo "* * * * * $PWD/check_trusted.sh" >> mycron
-crontab mycron
-rm mycron
