@@ -1,0 +1,189 @@
+#!/bin/bash
+
+OPTIND=1
+verbose=0
+function show_help {
+	
+	echo "Usage: beek-music [OPTION] [COMMAND]"
+	echo ""	
+	echo "	-i		print streaming server info"
+	echo "	-s		starts streaming"
+	echo "	-t		stops streaming"
+	echo "	-c		prints COMMAND info"
+}
+
+ini_get () {
+    awk -v section="$2" -v variable="$3" '
+        $0 == "[" section "]" { in_section = 1; next }
+        in_section && $1 == variable {
+            $1=""
+            $2=""
+            sub(/^[[:space:]]+/, "")
+            print
+            exit 
+        }
+        in_section && $1 == "" {
+            # we are at a blank line without finding the var in the section
+            print "not found" > "/dev/stderr"
+            exit 1
+        }
+    ' "$1"
+}
+
+confile="/etc/beek/beek.conf"
+modules=$(ini_get $confile general modules | sed 's/ //g')
+if [[ $modules != *"music"* ]] 
+then
+echo "Module music not found in beek.conf"
+echo "Modules found: $modules" 
+exit
+else
+ip=$(ini_get $confile music ip | sed 's/ //g')
+port=$(ini_get $confile music port | sed 's/ //g')
+user=$(cat /etc/beek/users.now | sed -n 2p)
+fi
+
+while getopts "h?vdsictua:" opt; do
+	case "$opt" in
+		h|\?)
+			show_help
+			exit 0
+			;;
+		i) 
+			echo "Server info for $modules module"
+		   	echo "IP:$ip - PORT:$port"
+			exit 0
+			;;
+		d)
+			nc -z $ip $port
+			if [[  $? == 1 ]]
+			then
+				if [[ $verbose == 1 ]]
+				then
+					echo "Starting server..."
+					echo "This may take several seconds, please wait..."
+				fi
+				(sshpass -p raspberry ssh pi@$ip "~/.beek/exec.sh default" &) > /etc/beek/music.log
+			else
+				echo "shutdown" | nc $ip $port
+				echo "Switching to default playlist"
+				(sshpass -p raspberry ssh pi@$ip "~/.beek/exec.sh default" &) >> /etc/beek/music.log
+			fi
+			exit 0
+			;;
+		s) 
+			nc -z $ip $port
+			if [[  $? == 1 ]]
+			then
+				if [[ $verbose == 1 ]]
+				then
+					echo "Starting server..."
+					echo "This may take several seconds, please wait..."
+				fi
+				(sshpass -p raspberry ssh pi@$ip "~/.beek/exec.sh $user" &) >> /etc/beek/music.log
+			else
+				lst=$(cat /etc/beek/beek-music.lst)
+				curr=$(cat /etc/beek/beek-music.curr)
+				echo "$lst - $curr"
+				if [[ "$lst" != "$curr" ]]
+				then
+					if [[ "$lst" = "usr" ]]
+					then
+						echo "shutdown" | nc $ip $port
+						echo "Switching to user's playlist"
+						(sshpass -p raspberry ssh pi@$ip "~/.beek/exec.sh  $user" &) >> /etc/beek/music.log
+						echo "usr" > /etc/beek/beek-music.curr
+					else
+						echo "shutdown" | nc $ip $port
+						echo "Switching to user's playlist"
+						(sshpass -p raspberry ssh pi@$ip "~/.beek/exec.sh  default" &) >> /etc/beek/music.log
+						echo "default" > /etc/beek/beek-music.curr
+					fi
+				fi
+			fi
+			exit 0
+			;;
+		t) 
+			echo "Server stop"
+			echo "shutdown" | nc $ip $port
+			exit 0
+			;;
+		c) 
+			echo "Command info"
+			exit 0
+			;;
+		v) 
+			verbose=1
+			;;
+		u) 
+			echo $user
+			exit 0
+			;;
+		a) 
+			;;
+	esac
+done
+
+shift $((OPTIND-1))
+
+[ "$1" = "--" ] && shift 
+
+case $@ in
+	"pause" ) 
+		echo "pause" | nc $ip $port
+		;;
+	"stop" ) 
+		echo "stop" | nc $ip $port
+		;;
+	"play" ) 
+		echo "play" | nc $ip $port
+		;;
+	"next" ) 
+		echo "next" | nc $ip $port
+		;;
+	"volup" ) 
+		echo "volup 5" | nc $ip $port
+		;;
+	"voldown" ) 
+		echo "voldown 5" | nc $ip $port
+		;;
+	"status" ) 
+		echo "status" | nc $ip $port | grep "file" | sed 's/.*file\:\/\/\/home\/pi\/Music\/.*\/\(.*\) .*/\1/'
+		;;
+	"fstatus" ) 
+		echo "status" | nc $ip $port | grep "file" | sed 's/.*file\:\/\/\(.*\) .*/\1/'
+		echo "/home/pi/Music/$user/"
+		;;
+	"playlist" ) 
+		curr=$(cat /etc/beek/beek-music.curr)
+		echo "$curr"
+		if [[ "$curr" = "usr" ]]
+		then
+			echo "Personal"
+		else
+			echo "Todas las canciones"
+		fi
+		;;
+	"add" ) 
+		curr=$(cat /etc/beek/beek-music.curr)
+		if [[ "$curr" != "usr" ]]
+		then
+			currfile=$(echo "status" | nc $ip $port | grep "file" | sed 's/.*file\:\/\/\(.*\) .*/\1/')
+			destfolder="/home/pi/Music/$user/"
+			echo "añadiendo  $currfile a $destfolder"
+			echo "cp $currfile $destfolder" > /etc/beek/.pending
+		fi
+		;;
+	"sudoadd" )
+		pending=$(cat /etc/beek/.pending)
+		echo "" > /etc/beek/.pending
+		(sshpass -p raspberry ssh pi@$ip "$pending" &) >> /etc/beek/music.log
+		;;
+	"")
+	show_help
+	;;
+	* ) 
+		echo "Command not found. Try beek-music -c"
+		;;
+	
+esac	

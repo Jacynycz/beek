@@ -171,3 +171,49 @@ up iptables-restore < /etc/iptables.ipv4.nat
  sudo reboot
 ```
 
+Copy all `beek_master/beek` files to `/etc/beek/`.
+
+Set your daemon in your __sudo__ crontab:
+```shell
+sudo crontab -l > mycron
+echo "* * * * * /etc/beek/beek-daemon.sh" >> mycron
+sudo crontab mycron
+rm mycron
+```
+
+Config you modules in `beek.conf`
+
+Add your smartphone's MAC address to `trusted.conf`
+
+### Set your control page
+
+First install apache
+
+```shell
+sudo apt-get install apache2 -y
+```
+
+Copy all files in `web/html` under `/var/www/html`
+
+## Beek Music
+
+You will need to install VLC media player to run this module.
+```shell
+sudo apt-get install vlc
+```
+
+Copy all files under `beek_music/.beek` in your raspberry's `home/pi/.beek` location.
+
+Set a _default_ playlist under `~/Music/default`.
+
+Now you can connect to `192.168.42.1` in your device to control your music.
+
+## Beek Heat
+
+Copy all files under `beek_heat/.beek` in your raspberry's `home/pi/.beek` location.
+
+Start your _Sense Hat_ emulator or connect a real one.
+
+Start the server running `python ~/.beek/server.py`
+
+Now you can connect to `192.168.42.1` in your device to control the heat.

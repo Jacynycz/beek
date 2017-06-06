@@ -1,0 +1,9 @@
+#!/bin/bash
+connected=$(arp)
+while read p; do
+   MAC=${p%;*}
+   USR=${p#*;}
+   if [[$connected=*$MAC ]]; then
+     echo $USR
+   fi
+done<~/.vjrouter/trusted.conf

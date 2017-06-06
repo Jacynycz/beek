@@ -1,0 +1,86 @@
+#!/bin/bash
+
+OPTIND=1
+verbose=0
+function show_help {
+	
+	echo "Usage: beek-heat [OPTION] [COMMAND]"
+	echo ""	
+	echo "	-h		print this help"
+	echo "  -c      print command info"
+}
+
+ini_get () {
+    awk -v section="$2" -v variable="$3" '
+        $0 == "[" section "]" { in_section = 1; next }
+        in_section && $1 == variable {
+            $1=""
+            $2=""
+            sub(/^[[:space:]]+/, "")
+            print
+            exit 
+        }
+        in_section && $1 == "" {
+            # we are at a blank line without finding the var in the section
+            print "not found" > "/dev/stderr"
+            exit 1
+        }
+    ' "$1"
+}
+
+confile="/etc/beek/beek.conf"
+modules=$(ini_get $confile general modules | sed 's/ //g')
+if [[ $modules != *"heat"* ]] 
+then
+echo "Module heat not found in beek.conf"
+echo "Modules found: $modules" 
+exit
+else
+ip=$(ini_get $confile heat ip | sed 's/ //g')
+port=$(ini_get $confile heat port | sed 's/ //g')
+user=$(cat /etc/beek/users.now | sed -n 2p)
+fi
+
+while getopts "h?vdsictua:" opt; do
+	case "$opt" in
+		h|\?)
+			show_help
+			exit 0
+			;;
+		c) 
+			echo "Command info"
+			exit 0
+			;;
+		u) 
+			echo $user
+			exit 0
+			;;
+		a) 
+			;;
+	esac
+done
+
+shift $((OPTIND-1))
+
+[ "$1" = "--" ] && shift 
+
+case $@ in
+	"sense" ) 
+		echo "sense" | nc $ip $port
+		;;
+		
+	"raise" ) 
+		echo "raise" | nc $ip $port
+		;;
+		
+	"lower" ) 
+		echo "lower" | nc $ip $port
+		;;
+	"")
+	show_help
+	;;
+	* ) 
+		echo "Command not found. Try beek-music -c"
+		;;
+	
+esac	
